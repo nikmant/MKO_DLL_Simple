@@ -28,6 +28,7 @@ type
     procedure TaskListClick(Sender: TObject);
     procedure RunButtonClick(Sender: TObject);
     procedure FormActivate(Sender: TObject);
+    procedure TaskHistoryClick(Sender: TObject);
   private
     FTaskInfos: TList;
     FParamEdits: TList;
@@ -105,6 +106,14 @@ begin
       TaskList.Items.Add(TaskInfo^.Name + ' (' + TaskInfo^.DllName + ')');
     end;
   end;
+end;
+
+procedure TMainForm.TaskHistoryClick(Sender: TObject);
+begin
+  if (TaskHistory.Selected <> nil) and (TaskHistory.Selected.SubItems.Count >= 3) then
+    ResultMemo.Lines.Text := TaskHistory.Selected.SubItems[2]
+  else
+    ResultMemo.Lines.Clear;
 end;
 
 procedure TMainForm.TaskListClick(Sender: TObject);

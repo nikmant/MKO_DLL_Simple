@@ -78,6 +78,7 @@ object MainForm: TMainForm
       end>
     TabOrder = 4
     ViewStyle = vsReport
+    OnClick = TaskHistoryClick
   end
   object ResultMemo: TMemo
     Left = 8
