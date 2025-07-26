@@ -25,11 +25,11 @@ const
     'SubstringSearch'
   );
   TASK_DESCRIPTIONS: array[0..1] of string = (
-    'Поиск файлов по маске и папке',
+    'Поиск файлов по маске(ам) и папке (поддерживает множественные маски через |)',
     'Поиск вхождений последовательности символов в файле'
   );
   TASK_PARAMS: array[0..1] of string = (
-    'Mask;Path',
+    'Mask (пример: *.exe|*.doc|*.txt);Path',
     'Substring;FilePath'
   );
 
@@ -73,15 +73,29 @@ end;
 
 // --- Реализация задач ---
 
+function SplitMasks(const MaskString: string): TStringList;
+var
+  MaskList: TStringList;
+begin
+  MaskList := TStringList.Create;
+  MaskList.Delimiter := '|';
+  MaskList.StrictDelimiter := True;
+  MaskList.DelimitedText := MaskString;
+  Result := MaskList;
+end;
+
 function FileMaskSearchRecursive(const Mask, Path: string; FileList: TStringList): Integer;
 var
   SR: TSearchRec;
   CurrentDir, SearchPath, SubDir: string;
   Found: Integer;
   DirList: TStringList;
+  MaskList: TStringList;
+  i: Integer;
 begin
   Result := 0;
   DirList := TStringList.Create;
+  MaskList := SplitMasks(Mask);
   try
     DirList.Add(Path);
     // Используем DirList как стек: пока есть папки для обработки
@@ -89,17 +103,23 @@ begin
     begin
       CurrentDir := DirList[DirList.Count - 1];
       DirList.Delete(DirList.Count - 1);
-      // Ищем файлы по маске в текущей папке
-      SearchPath := IncludeTrailingPathDelimiter(CurrentDir) + Mask;
-      Found := FindFirst(SearchPath, faAnyFile and not faDirectory, SR);
-      if Found = 0 then
-      try
-        repeat
-          FileList.Add(IncludeTrailingPathDelimiter(CurrentDir) + SR.Name);
-        until FindNext(SR) <> 0;
-      finally
-        FindClose(SR);
+      
+      // Обрабатываем каждую маску отдельно
+      for i := 0 to MaskList.Count - 1 do
+      begin
+        // Ищем файлы по текущей маске в текущей папке
+        SearchPath := IncludeTrailingPathDelimiter(CurrentDir) + MaskList[i];
+        Found := FindFirst(SearchPath, faAnyFile and not faDirectory, SR);
+        if Found = 0 then
+        try
+          repeat
+            FileList.Add(IncludeTrailingPathDelimiter(CurrentDir) + SR.Name);
+          until FindNext(SR) <> 0;
+        finally
+          FindClose(SR);
+        end;
       end;
+      
       // Ищем подпапки и добавляем их в стек
       Found := FindFirst(IncludeTrailingPathDelimiter(CurrentDir) + '*', faDirectory, SR);
       if Found = 0 then
@@ -118,6 +138,7 @@ begin
     Result := FileList.Count;
   finally
     DirList.Free;
+    MaskList.Free;
   end;
 end;
 
@@ -209,7 +230,7 @@ begin
         if ParamList.Count = 2 then
           ResultBuffer := FileMaskSearch(ParamList[0], ParamList[1])
         else
-          LastErrorText := 'Ожидалось 2 параметра: Mask;Path';
+          LastErrorText := 'Ожидалось 2 параметра: Mask;Path (маски разделяются символом |)';
       1: // SubstringSearch
         if ParamList.Count = 2 then
           ResultBuffer := SubstringSearch(ParamList[0], ParamList[1])

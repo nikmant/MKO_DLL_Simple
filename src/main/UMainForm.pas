@@ -231,9 +231,9 @@ begin
     ParamLabel.Caption := TaskInfo^.Params[i] + ':';
     ParamEdit := TEdit.Create(ParamPanel);
     ParamEdit.Parent := ParamPanel;
-    ParamEdit.Left := 120;
+    ParamEdit.Left := 190;
     ParamEdit.Top := 8 + i * 28;
-    ParamEdit.Width := 200;
+    ParamEdit.Width := ParamPanel.Width - ParamEdit.Left - 10;
     FParamEdits.Add(ParamEdit);
   end;
 end;
