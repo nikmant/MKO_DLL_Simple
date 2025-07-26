@@ -73,7 +73,7 @@ object MainForm: TMainForm
       end
       item
         Caption = #1057#1090#1072#1090#1091#1089
-        Width = 80
+        Width = 120
       end
       item
         Caption = #1056#1077#1079#1091#1083#1100#1090#1072#1090
