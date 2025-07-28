@@ -10,6 +10,7 @@ exports
   GetTaskDescription,
   GetTaskParams,
   RunTask,
+  StopTask,
   GetLastErrorText;
 
 begin

@@ -125,6 +125,8 @@ begin
   begin
     FListItem.SubItems[1] := FStatus;
     FListItem.SubItems[2] := FResult;
+    if FListItem.Selected then
+      FMainForm.TaskHistorySelect;
   end;
   // Удаляем поток из словаря после завершения
   if Assigned(TaskThreads) then
@@ -295,6 +297,10 @@ begin
   ListItem.SubItems.Add('Выполняется');
   ListItem.SubItems.Add('');
   ListItem.Data := Pointer(TaskRunId);
+  ListItem.Selected := True;
+  TaskHistory.Selected := ListItem;
+  TaskHistory.ItemFocused := ListItem;
+  TaskHistorySelect;
   Thread := TTaskThread.Create(TaskInfo^, Params, TaskRunId, Self, ListItem);
   TaskThreads.Add(TaskRunId, Thread);
 end;

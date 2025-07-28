@@ -3,7 +3,7 @@
 interface
 
 uses
-  SysUtils, Classes, PluginAPI;
+  SysUtils, Classes, Generics.Collections;
 
 function GetTaskCount: Integer; stdcall;
 function GetTaskName(Index: Integer): PChar; stdcall;
@@ -11,12 +11,14 @@ function GetTaskDescription(Index: Integer): PChar; stdcall;
 function GetTaskParams(Index: Integer): PChar; stdcall;
 function RunTask(Index: Integer; TaskRunId: Integer; Params: PChar): PChar; stdcall;
 function GetLastErrorText: PChar; stdcall;
+procedure StopTask(TaskRunId: Integer); stdcall;
 
 implementation
 
 var
   LastErrorText: string = '';
   ResultBuffer: string = '';
+  TerminatedTasks: TList<Integer> = nil;
 
 const
   TASK_COUNT = 2;
@@ -84,7 +86,20 @@ begin
   Result := MaskList;
 end;
 
-function FileMaskSearchRecursive(const Mask, Path: string; FileList: TStringList): Integer;
+function IsTaskTerminated(TaskRunId: Integer): Boolean;
+begin
+  Result := False;
+  if (TerminatedTasks <> nil) then
+    if (TerminatedTasks.IndexOf(TaskRunId) <> -1) then
+      Result := True;
+end;
+
+procedure StopTask(TaskRunId: Integer); stdcall;
+begin
+  TerminatedTasks.Add(TaskRunId);
+end;
+
+function FileMaskSearchRecursive(TaskRunId: Integer; const Mask, Path: string; FileList: TStringList): Integer;
 var
   SR: TSearchRec;
   CurrentDir, SearchPath, SubDir: string;
@@ -99,20 +114,23 @@ begin
   try
     DirList.Add(Path);
     // Используем DirList как стек: пока есть папки для обработки
-    while DirList.Count > 0 do
+    while (DirList.Count > 0) do
     begin
+      if IsTaskTerminated(TaskRunId) then Exit;
       CurrentDir := DirList[DirList.Count - 1];
       DirList.Delete(DirList.Count - 1);
       
       // Обрабатываем каждую маску отдельно
       for i := 0 to MaskList.Count - 1 do
       begin
+        if IsTaskTerminated(TaskRunId) then Exit;
         // Ищем файлы по текущей маске в текущей папке
         SearchPath := IncludeTrailingPathDelimiter(CurrentDir) + MaskList[i];
         Found := FindFirst(SearchPath, faAnyFile and not faDirectory, SR);
         if Found = 0 then
         try
           repeat
+            if IsTaskTerminated(TaskRunId) then Exit;
             FileList.Add(IncludeTrailingPathDelimiter(CurrentDir) + SR.Name);
           until FindNext(SR) <> 0;
         finally
@@ -127,6 +145,7 @@ begin
         repeat
           if ((SR.Attr and faDirectory) <> 0) and (SR.Name <> '.') and (SR.Name <> '..') then
           begin
+            if IsTaskTerminated(TaskRunId) then Exit;
             SubDir := IncludeTrailingPathDelimiter(CurrentDir) + SR.Name;
             DirList.Add(SubDir);
           end;
@@ -142,15 +161,24 @@ begin
   end;
 end;
 
-function FileMaskSearch(const Mask, Path: string): string;
+function FileMaskSearch(TaskRunId: Integer; const Mask, Path: string): string;
 var
   FileList: TStringList;
-  Count: Integer;
 begin
   Result := '';
+  if IsTaskTerminated(TaskRunId) then
+  begin
+    Result := Result+'Прервано';
+    Exit;
+  end;
   FileList := TStringList.Create;
   try
-    Count := FileMaskSearchRecursive(Mask, Path, FileList);
+    FileMaskSearchRecursive(TaskRunId, Mask, Path, FileList);
+    if IsTaskTerminated(TaskRunId) then
+    begin
+      Result := Result+'Прервано';
+      Exit;
+    end;
     Result := IntToStr(FileList.Count);
     if FileList.Count > 0 then
       Result := Result + #13#10 + FileList.Text;
@@ -159,17 +187,22 @@ begin
   end;
 end;
 
-function SubstringSearch(const Substring, FilePath: string): string;
+function SubstringSearch(TaskRunId: Integer; const Substring, FilePath: string): string;
 var
   FS: TFileStream;
   Buffer: array[0..4095] of Byte;
   ReadBytes, i, j, MatchCount: Integer;
   SubBytes: TBytes;
   PosList: TStringList;
-  FilePos, BufPos: Int64;
+  FilePos: Int64;
   Match: Boolean;
 begin
   Result := '';
+  if IsTaskTerminated(TaskRunId) then
+  begin
+    Result := Result+'Прервано';
+    Exit;
+  end;
   MatchCount := 0;
   PosList := TStringList.Create;
   try
@@ -180,9 +213,19 @@ begin
         SubBytes[i-1] := Byte(Substring[i]);
       FilePos := 0;
       repeat
+        if IsTaskTerminated(TaskRunId) then
+        begin
+          Result := Result+'Прервано';
+          Exit;
+        end;
         ReadBytes := FS.Read(Buffer, SizeOf(Buffer));
         for i := 0 to ReadBytes - Length(SubBytes) do
         begin
+          if IsTaskTerminated(TaskRunId) then
+          begin
+            Result := Result+'Прервано';
+            Exit;
+          end;
           Match := True;
           for j := 0 to Length(SubBytes) - 1 do
             if Buffer[i + j] <> SubBytes[j] then
@@ -203,6 +246,11 @@ begin
       until False;
     finally
       FS.Free;
+    end;
+    if IsTaskTerminated(TaskRunId) then
+    begin
+      Result := Result+'Прервано';
+      Exit;
     end;
     Result := IntToStr(MatchCount);
     if MatchCount > 0 then
@@ -228,12 +276,12 @@ begin
     case Index of
       0: // FileMaskSearch
         if ParamList.Count = 2 then
-          ResultBuffer := FileMaskSearch(ParamList[0], ParamList[1])
+          ResultBuffer := FileMaskSearch(TaskRunId, ParamList[0], ParamList[1])
         else
           LastErrorText := 'Ожидалось 2 параметра: Mask;Path (маски разделяются символом |)';
       1: // SubstringSearch
         if ParamList.Count = 2 then
-          ResultBuffer := SubstringSearch(ParamList[0], ParamList[1])
+          ResultBuffer := SubstringSearch(TaskRunId, ParamList[0], ParamList[1])
         else
           LastErrorText := 'Ожидалось 2 параметра: Substring;FilePath';
     else
@@ -249,5 +297,12 @@ function GetLastErrorText: PChar; stdcall;
 begin
   Result := PChar(LastErrorText);
 end;
+
+initialization
+  TerminatedTasks := TList<Integer>.Create;
+  TerminatedTasks.Capacity := 1000;
+
+finalization
+  TerminatedTasks.Free;
 
 end.

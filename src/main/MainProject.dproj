@@ -122,6 +122,7 @@
         <VerInfo_IncludeVerInfo>true</VerInfo_IncludeVerInfo>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=;FileDescription=$(MSBuildProjectName);FileVersion=1.0.0.0;InternalName=;LegalCopyright=;LegalTrademarks=;OriginalFilename=;ProductName=$(MSBuildProjectName);ProductVersion=1.0.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
+        <Debugger_DebugSourcePath>D:\Work\Projects2025\MKO_System\MKO_DLL_Simple\src\plugins\FileSearchDLL;D:\Work\Projects2025\MKO_System\MKO_DLL_Simple\src\plugins\EndlessLoopDLL;D:\Work\Projects2025\MKO_System\MKO_DLL_Simple\src\plugins\ShellExecDLL;$(Debugger_DebugSourcePath)</Debugger_DebugSourcePath>
     </PropertyGroup>
     <ItemGroup>
         <DelphiCompile Include="$(MainSource)">
