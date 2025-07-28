@@ -25,10 +25,14 @@ type
     RunButton: TButton;
     TaskHistory: TListView;
     ResultMemo: TMemo;
+    StopButton: TButton;
     procedure TaskListClick(Sender: TObject);
     procedure RunButtonClick(Sender: TObject);
     procedure FormActivate(Sender: TObject);
     procedure TaskHistoryClick(Sender: TObject);
+    procedure TaskHistoryChange(Sender: TObject; Item: TListItem;
+      Change: TItemChange);
+    procedure StopButtonClick(Sender: TObject);
   private
     FTaskInfos: TList;
     FParamEdits: TList;
@@ -37,6 +41,7 @@ type
     procedure LoadAllDllTasks;
     procedure ClearParamInputs;
     procedure CancelTask(TaskRunId: Integer);
+    procedure TaskHistorySelect;
   public
   end;
 
@@ -98,7 +103,7 @@ begin
     end
     else
     begin
-      FResult := FTaskInfo.RunTask(FTaskInfo.Index, PChar(FParams));
+      FResult := FTaskInfo.RunTask(FTaskInfo.Index, FTaskRunId, PChar(FParams));
       if Terminated then
         FStatus := 'Прервано'
       else
@@ -137,7 +142,6 @@ end;
 
 procedure TMainForm.LoadAllDllTasks;
 var
-  SearchRes: TSearchRec;
   DllPath, DllName: string;
   DllHandle: HMODULE;
   GetTaskCount: TGetTaskCountFunc;
@@ -148,7 +152,6 @@ var
   i, TaskCount: Integer;
   TaskInfo: ^TTaskInfo;
   ParamStrs: string;
-  ParamArr: TArray<string>;
   DllList: TStringDynArray;
 begin
   TaskList.Items.Clear;
@@ -164,7 +167,11 @@ begin
     @GetTaskDescription := GetProcAddress(DllHandle, 'GetTaskDescription');
     @GetTaskParams := GetProcAddress(DllHandle, 'GetTaskParams');
     @RunTask := GetProcAddress(DllHandle, 'RunTask');
-    if not Assigned(GetTaskCount) or not Assigned(GetTaskName) or not Assigned(GetTaskDescription) or not Assigned(GetTaskParams) or not Assigned(RunTask) then
+    if not Assigned(GetTaskCount)
+    or not Assigned(GetTaskName)
+    or not Assigned(GetTaskDescription)
+    or not Assigned(GetTaskParams)
+    or not Assigned(RunTask) then
     begin
       FreeLibrary(DllHandle);
       Continue;
@@ -187,7 +194,18 @@ begin
   end;
 end;
 
+procedure TMainForm.TaskHistoryChange(Sender: TObject; Item: TListItem;
+  Change: TItemChange);
+begin
+  TaskHistorySelect;
+end;
+
 procedure TMainForm.TaskHistoryClick(Sender: TObject);
+begin
+  TaskHistorySelect;
+end;
+
+procedure TMainForm.TaskHistorySelect;
 begin
   if (TaskHistory.Selected <> nil) and (TaskHistory.Selected.SubItems.Count >= 3) then
     ResultMemo.Lines.Text := TaskHistory.Selected.SubItems[2]
@@ -199,9 +217,6 @@ procedure TMainForm.TaskListClick(Sender: TObject);
 var
   idx: Integer;
   TaskInfo: ^TTaskInfo;
-  i: Integer;
-  ParamLabel: TLabel;
-  ParamEdit: TEdit;
 begin
   idx := TaskList.ItemIndex;
   if (idx < 0) or (idx >= FTaskInfos.Count) then Exit;
@@ -262,6 +277,10 @@ begin
   idx := TaskList.ItemIndex;
   if (idx < 0) or (idx >= FTaskInfos.Count) then Exit;
   TaskInfo := FTaskInfos[idx];
+  Inc(GTaskRunId);
+  TaskRunId := GTaskRunId;
+  
+  // Собираем параметры от пользователя
   Params := '';
   for i := 0 to FParamEdits.Count - 1 do
   begin
@@ -269,15 +288,26 @@ begin
     if i > 0 then Params := Params + ';';
     Params := Params + ParamEdit.Text;
   end;
-  Inc(GTaskRunId);
+  
   ListItem := TaskHistory.Items.Add;
   ListItem.Caption := TaskInfo^.Name;
   ListItem.SubItems.Add(Params);
   ListItem.SubItems.Add('Выполняется');
   ListItem.SubItems.Add('');
-  ListItem.Data := Pointer(GTaskRunId);
-  Thread := TTaskThread.Create(TaskInfo^, Params, GTaskRunId, Self, ListItem);
-  TaskThreads.Add(GTaskRunId, Thread);
+  ListItem.Data := Pointer(TaskRunId);
+  Thread := TTaskThread.Create(TaskInfo^, Params, TaskRunId, Self, ListItem);
+  TaskThreads.Add(TaskRunId, Thread);
+end;
+
+procedure TMainForm.StopButtonClick(Sender: TObject);
+var
+  TaskRunId: Integer;
+begin
+  if (TaskHistory.Selected <> nil) and (TaskHistory.Selected.Data <> nil) then
+  begin
+    TaskRunId := Integer(TaskHistory.Selected.Data);
+    CancelTask(TaskRunId);
+  end;
 end;
 
 procedure TMainForm.AddTaskToHistory(const TaskName, Params, Status, Result: string);
@@ -291,13 +321,25 @@ begin
   Item.SubItems.Add(Result);
 end;
 
-// Добавим процедуру для прерывания задачи по TaskRunId
+// Процедура для прерывания задачи по уникальному TaskRunId
 procedure TMainForm.CancelTask(TaskRunId: Integer);
 var
   Thread: TThread;
+  TaskInfo: ^TTaskInfo;
+  DllHandle: HMODULE;
+  StopTaskProc: procedure(TaskRunId: Integer); stdcall;
+  i: Integer;
 begin
   if TaskThreads.TryGetValue(TaskRunId, Thread) then
     Thread.Terminate;
+  for i := 0 to FTaskInfos.Count - 1 do
+  begin
+    TaskInfo := FTaskInfos[i];
+    DllHandle := TaskInfo^.DllHandle;
+    @StopTaskProc := GetProcAddress(DllHandle, 'StopTask');
+    if Assigned(StopTaskProc) then
+      StopTaskProc(TaskRunId);
+  end;
 end;
 
 end. 

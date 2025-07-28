@@ -9,7 +9,7 @@ function GetTaskCount: Integer; stdcall;
 function GetTaskName(Index: Integer): PChar; stdcall;
 function GetTaskDescription(Index: Integer): PChar; stdcall;
 function GetTaskParams(Index: Integer): PChar; stdcall;
-function RunTask(Index: Integer; Params: PChar): PChar; stdcall;
+function RunTask(Index: Integer; TaskRunId: Integer; Params: PChar): PChar; stdcall;
 function GetLastErrorText: PChar; stdcall;
 
 implementation
@@ -119,7 +119,7 @@ begin
     Result := 'OK';
 end;
 
-function RunTask(Index: Integer; Params: PChar): PChar; stdcall;
+function RunTask(Index: Integer; TaskRunId: Integer; Params: PChar): PChar; stdcall;
 var
   ParamList: TStringList;
 begin

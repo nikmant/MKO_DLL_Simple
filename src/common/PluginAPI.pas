@@ -17,7 +17,7 @@ type
   TGetTaskNameFunc = function(Index: TTaskIndex): PChar; stdcall;
   TGetTaskDescriptionFunc = function(Index: TTaskIndex): PChar; stdcall;
   TGetTaskParamsFunc = function(Index: TTaskIndex): PChar; stdcall;
-  TRunTaskFunc = function(Index: TTaskIndex; Params: PChar): PChar; stdcall;
+  TRunTaskFunc = function(Index: TTaskIndex; TaskRunId: Integer; Params: PChar): PChar; stdcall;
   TGetLastErrorTextFunc = function: PChar; stdcall; // опционально
 
 implementation

@@ -59,7 +59,7 @@ object MainForm: TMainForm
   object TaskHistory: TListView
     Left = 8
     Top = 220
-    Width = 892
+    Width = 773
     Height = 181
     Anchors = [akLeft, akTop, akRight, akBottom]
     Columns = <
@@ -77,20 +77,31 @@ object MainForm: TMainForm
       end
       item
         Caption = #1056#1077#1079#1091#1083#1100#1090#1072#1090
-        Width = 400
+        Width = 290
       end>
     TabOrder = 4
     ViewStyle = vsReport
+    OnChange = TaskHistoryChange
     OnClick = TaskHistoryClick
   end
   object ResultMemo: TMemo
     Left = 8
     Top = 411
-    Width = 892
+    Width = 773
     Height = 150
     Anchors = [akLeft, akRight, akBottom]
     ReadOnly = True
     ScrollBars = ssVertical
     TabOrder = 5
+  end
+  object StopButton: TButton
+    Left = 800
+    Top = 371
+    Width = 100
+    Height = 30
+    Anchors = [akTop, akRight]
+    Caption = #1054#1089#1090#1072#1085#1086#1074#1080#1090#1100
+    TabOrder = 6
+    OnClick = StopButtonClick
   end
 end

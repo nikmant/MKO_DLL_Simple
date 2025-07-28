@@ -11,7 +11,8 @@ exports
   GetTaskDescription,
   GetTaskParams,
   RunTask,
-  GetLastErrorText;
+  GetLastErrorText,
+  StopTask;
 
 begin
 end. 

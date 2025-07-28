@@ -3,20 +3,22 @@
 interface
 
 uses
-  SysUtils, Classes, PluginAPI;
+  SysUtils, Classes, PluginAPI, Generics.Collections;
 
 function GetTaskCount: Integer; stdcall;
 function GetTaskName(Index: Integer): PChar; stdcall;
 function GetTaskDescription(Index: Integer): PChar; stdcall;
 function GetTaskParams(Index: Integer): PChar; stdcall;
-function RunTask(Index: Integer; Params: PChar): PChar; stdcall;
+function RunTask(Index: Integer; TaskRunId: Integer; Params: PChar): PChar; stdcall;
 function GetLastErrorText: PChar; stdcall;
+procedure StopTask(TaskRunId: Integer); stdcall;
 
 implementation
 
 var
   LastErrorText: string = '';
   ResultBuffer: string = '';
+  TerminatedTasks: TList<Integer> = nil;
 
 const
   TASK_COUNT = 1;
@@ -68,9 +70,20 @@ begin
   end;
 end;
 
-// --- Реализация задач ---
+procedure StopTask(TaskRunId: Integer); stdcall;
+begin
+  if TerminatedTasks = nil then
+    TerminatedTasks := TList<Integer>.Create;
+  if TerminatedTasks.IndexOf(TaskRunId) = -1 then
+    TerminatedTasks.Add(TaskRunId);
+end;
 
-function EndlessLoop(const Seconds: string): string;
+function IsTaskTerminated(TaskRunId: Integer): Boolean;
+begin
+  Result := (TerminatedTasks <> nil) and (TerminatedTasks.IndexOf(TaskRunId) <> -1);
+end;
+
+function EndlessLoop(TaskRunId: Integer; const Seconds: string): string;
 var
   Duration: Integer;
   StartTime: TDateTime;
@@ -84,26 +97,27 @@ begin
       Result := 'Ошибка: количество секунд должно быть больше 0';
       Exit;
     end;
-    
     StartTime := Now;
     i := 0;
-    
-    // Бесконечный цикл до истечения времени
     while True do
     begin
-      Inc(i);      
+      Inc(i);
+      if IsTaskTerminated(TaskRunId) then
+      begin
+        Result := 'Прервано. Итераций: ' + IntToStr(i);
+        Exit;
+      end;
       if (Now - StartTime) * 24 * 60 * 60 >= Duration then
         Break;
     end;
-    
-    Result := 'Completed. Iterations: ' + IntToStr(i);
+    Result := 'Завершено. Итераций: ' + IntToStr(i);
   except
     on E: Exception do
       Result := 'Ошибка: ' + E.Message;
   end;
 end;
 
-function RunTask(Index: Integer; Params: PChar): PChar; stdcall;
+function RunTask(Index: Integer; TaskRunId: Integer; Params: PChar): PChar; stdcall;
 var
   ParamList: TStringList;
 begin
@@ -117,11 +131,11 @@ begin
     case Index of
       0: // EndlessLoop
         if ParamList.Count = 1 then
-          ResultBuffer := EndlessLoop(ParamList[0])
+          ResultBuffer := EndlessLoop(TaskRunId, ParamList[0])
         else
           LastErrorText := 'Ожидался 1 параметр: Seconds';
     else
-      LastErrorText := 'Invalid task index';
+      LastErrorText := 'Ошибочный Index задачи';
     end;
   finally
     ParamList.Free;
@@ -133,5 +147,11 @@ function GetLastErrorText: PChar; stdcall;
 begin
   Result := PChar(LastErrorText);
 end;
+
+initialization
+  TerminatedTasks := TList<Integer>.Create;
+
+finalization
+  TerminatedTasks.Free;
 
 end. 
